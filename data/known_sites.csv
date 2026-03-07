@@ -1,0 +1,16 @@
+site_name,latitude,longitude,source
+Tikal,17.222,-89.6237,hardcoded_fallback
+Uaxactún,17.3936,-89.6333,hardcoded_fallback
+El Mirador,17.7567,-89.9186,hardcoded_fallback
+Nakbé,17.6589,-89.8386,hardcoded_fallback
+La Muralla,17.45,-89.85,hardcoded_fallback
+Río Azul,17.75,-89.3833,hardcoded_fallback
+Yaxhá,17.075,-89.4033,hardcoded_fallback
+Naranjo,17.1708,-89.3631,hardcoded_fallback
+Xultún,17.4833,-89.6,hardcoded_fallback
+San Bartolo,17.5083,-89.55,hardcoded_fallback
+Calakmul,18.1042,-89.8161,hardcoded_fallback
+La Danta (El Mirador complex),17.765,-89.925,hardcoded_fallback
+Tintal,17.67,-90.07,hardcoded_fallback
+Wakná (Güiro),17.69,-89.72,hardcoded_fallback
+Dos Lagunas,17.6083,-89.7167,hardcoded_fallback
