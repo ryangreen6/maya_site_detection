@@ -29,10 +29,27 @@ OPENTOPOGRAPHY_API_KEY: str = "de526e9767dfb8a5a28db9b54c36fde7"  # Set your key
 S2_DATE_RANGE: tuple[str, str] = ("2022-01-01", "2023-12-31")
 S2_CLOUD_THRESHOLD: int = 20  # Maximum scene-level cloud cover percentage (0–100)
 
+# Dry season (Mar–May) maximises thermal/vegetation stress over buried stone
+S2_DRY_SEASON_DATE_RANGE: tuple[str, str] = ("2023-03-01", "2023-05-31")
+
 # ---------------------------------------------------------------------------
 # Sentinel-1 parameters
 # ---------------------------------------------------------------------------
 S1_DATE_RANGE: tuple[str, str] = ("2022-01-01", "2023-12-31")
+
+# ---------------------------------------------------------------------------
+# Landsat Collection 2 Level-2 thermal parameters
+# ---------------------------------------------------------------------------
+LANDSAT_DATE_RANGE: tuple[str, str] = ("2022-01-01", "2023-12-31")
+LANDSAT_CLOUD_THRESHOLD: int = 20
+
+# ---------------------------------------------------------------------------
+# GEDI L2A ground elevation parameters
+# ---------------------------------------------------------------------------
+# NASA Earthdata credentials — set EARTHDATA_USERNAME and EARTHDATA_PASSWORD
+# in your shell environment (e.g., ~/.zshrc) before running the GEDI step.
+GEDI_MIN_SENSITIVITY: float = 0.95   # Minimum beam sensitivity to accept a shot
+GEDI_MAX_GAP_M: float = 500.0        # Max interpolation gap in metres (NaN beyond)
 
 # ---------------------------------------------------------------------------
 # Directory structure — all relative to the project root
@@ -42,13 +59,22 @@ RAW_DATA_DIR: Path = BASE_DIR / "data" / "raw"
 OUTPUT_DIR: Path = BASE_DIR / "outputs"
 DEM_DIR: Path = RAW_DATA_DIR / "dem"
 S2_DIR: Path = RAW_DATA_DIR / "sentinel2"
+S2_DRY_DIR: Path = RAW_DATA_DIR / "sentinel2_dry"
 S1_DIR: Path = RAW_DATA_DIR / "sentinel1"
+COPERNICUS_DEM_DIR: Path = RAW_DATA_DIR / "copernicus_dem"
+LANDSAT_DIR: Path = RAW_DATA_DIR / "landsat"
+GEDI_DIR: Path = RAW_DATA_DIR / "gedi"
 STATIC_MAPS_DIR: Path = OUTPUT_DIR / "maps"
 
 # Derived file paths
 DEM_PATH: Path = DEM_DIR / "srtm_merged.tif"
+COPERNICUS_DEM_PATH: Path = COPERNICUS_DEM_DIR / "cop_dem_merged.tif"
 S2_COMPOSITE_PATH: Path = S2_DIR / "s2_composite.nc"
+S2_DRY_COMPOSITE_PATH: Path = S2_DRY_DIR / "s2_dry_composite.nc"
 S1_COMPOSITE_PATH: Path = S1_DIR / "s1_composite.nc"
+LANDSAT_COMPOSITE_PATH: Path = LANDSAT_DIR / "landsat_thermal.nc"
+GEDI_SHOTS_PATH: Path = GEDI_DIR / "gedi_shots.csv"
+GEDI_RASTER_PATH: Path = GEDI_DIR / "gedi_ground_elev.tif"
 COMPOSITE_SCORE_PATH: Path = OUTPUT_DIR / "composite_score.tif"
 OPTIMIZED_SCORE_PATH: Path = OUTPUT_DIR / "composite_score_optimized.tif"
 CANDIDATES_GEOJSON_PATH: Path = OUTPUT_DIR / "candidate_sites.geojson"
@@ -67,11 +93,22 @@ KNOWN_SITES_CSV: Path = BASE_DIR / "data" / "known_sites.csv"
 # Values are relative; they will be normalized to sum to 1 internally.
 # ---------------------------------------------------------------------------
 FUSION_WEIGHTS: dict[str, float] = {
-    "tpi": 0.25,
-    "lrm": 0.25,
-    "ndvi": 0.20,
-    "sar": 0.15,
-    "geometric": 0.15,
+    # SRTM/Copernicus terrain (useful but limited by canopy)
+    "tpi": 0.08,
+    "lrm": 0.08,
+    "cop_tpi": 0.08,           # Copernicus DEM TPI (better vertical accuracy)
+    # Vegetation stress
+    "ndvi": 0.08,
+    "ndvi_dry": 0.10,          # Dry-season NDVI anomaly (peak stress signal)
+    # SAR
+    "sar": 0.08,
+    # Geometric / orientation
+    "geometric": 0.08,
+    "east_sightline": 0.08,
+    # Thermal inertia (stone vs soil contrast)
+    "thermal": 0.10,
+    # GEDI ground elevation — penetrates canopy (highest weight)
+    "gedi_relief": 0.24,
 }
 
 # ---------------------------------------------------------------------------
@@ -96,6 +133,11 @@ CANNY_SIGMA: float = 2.0          # Gaussian blur sigma for Canny edge detection
 HOUGH_THRESHOLD: int = 10         # Minimum votes in Hough accumulator
 LINEAMENT_DENSITY_RADIUS: int = 15  # Neighborhood radius for density map (pixels)
 CARDINAL_AZIMUTHS: list[int] = [0, 45, 90, 135]  # Target orientations in degrees
+
+# ---------------------------------------------------------------------------
+# East sightline parameters
+# ---------------------------------------------------------------------------
+EAST_SIGHTLINE_HORIZON_KM: float = 1.0  # Distance east over which to compute horizon angle
 
 # ---------------------------------------------------------------------------
 # Validation parameters

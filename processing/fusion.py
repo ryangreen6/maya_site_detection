@@ -346,6 +346,7 @@ def fuse_layers(
     ndvi_anomaly: Optional[xr.DataArray],
     sar_anomaly: Optional[xr.DataArray],
     geometric: Optional[xr.DataArray],
+    east_sightline: Optional[xr.DataArray] = None,
     weights: dict[str, float] = config.FUSION_WEIGHTS,
     output_path: Path = config.COMPOSITE_SCORE_PATH,
 ) -> Optional[xr.DataArray]:
@@ -361,7 +362,9 @@ def fuse_layers(
         ndvi_anomaly: NDVI anomaly z-score DataArray.
         sar_anomaly: Combined SAR anomaly DataArray.
         geometric: Lineament density DataArray.
-        weights: Dictionary of layer weights (keys: tpi, lrm, ndvi, sar, geometric).
+        east_sightline: East-facing elevated feature with open eastern horizon.
+        weights: Dictionary of layer weights (keys: tpi, lrm, ndvi, sar,
+                 geometric, east_sightline).
         output_path: Path to save the GeoTIFF composite score.
 
     Returns:
@@ -373,6 +376,7 @@ def fuse_layers(
         "ndvi": ndvi_anomaly,
         "sar": sar_anomaly,
         "geometric": geometric,
+        "east_sightline": east_sightline,
     }
 
     print("[fusion] Normalizing layers ...")

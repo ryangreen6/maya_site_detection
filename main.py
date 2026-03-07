@@ -193,8 +193,24 @@ def main() -> None:
 
     # ── Step 8: Geometric lineament detection ────────────────────────────────
     _step("Step 8/14 — Detecting geometric lineament features")
-    from processing.geometry import compute_geometric_anomaly
+    from processing.geometry import compute_geometric_anomaly, compute_east_sightline
     lineament_density = compute_geometric_anomaly(lrm=lrm, hillshade=hillshade)
+    east_sightline = compute_east_sightline(dem, tpi=tpi_large)
+
+    # ── Step 8b: Profile known sites across all layers ───────────────────────
+    _step("Step 8b/14 — Profiling known sites across all layers")
+    from analysis.profile import profile_layer_discrimination
+    profile_layer_discrimination(
+        layers={
+            "tpi":            tpi_large,
+            "lrm":            lrm,
+            "ndvi_anomaly":   ndvi,
+            "ndvi_z":         veg_layers["ndvi_anomaly"],
+            "lineament":      lineament_density,
+            "east_sightline": east_sightline,
+        },
+        sites_gdf=sites_gdf,
+    )
 
     # ── Step 9a: Fuse with config weights ────────────────────────────────────
     _step("Step 9a/14 — Fusing layers with config weights")
@@ -205,6 +221,7 @@ def main() -> None:
         ndvi_anomaly=ndvi_anomaly,
         sar_anomaly=sar_anomaly,
         geometric=lineament_density,
+        east_sightline=east_sightline,
         weights=config.FUSION_WEIGHTS,
         output_path=config.COMPOSITE_SCORE_PATH,
     )
@@ -219,11 +236,12 @@ def main() -> None:
 
         # Prepare normalized layers for optimization
         norm_layers = {
-            "tpi": normalize_layer(tpi_large),
-            "lrm": normalize_layer(lrm),
-            "ndvi": normalize_layer(ndvi_anomaly, invert=True),
-            "sar": normalize_layer(sar_anomaly),
-            "geometric": normalize_layer(lineament_density),
+            "tpi":            normalize_layer(tpi_large),
+            "lrm":            normalize_layer(lrm),
+            "ndvi":           normalize_layer(ndvi_anomaly, invert=True),
+            "sar":            normalize_layer(sar_anomaly),
+            "geometric":      normalize_layer(lineament_density),
+            "east_sightline": normalize_layer(east_sightline),
         }
 
         optimized_weights = optimize_weights(
@@ -238,6 +256,7 @@ def main() -> None:
             ndvi_anomaly=ndvi_anomaly,
             sar_anomaly=sar_anomaly,
             geometric=lineament_density,
+            east_sightline=east_sightline,
             weights=optimized_weights,
             output_path=config.OPTIMIZED_SCORE_PATH,
         )
