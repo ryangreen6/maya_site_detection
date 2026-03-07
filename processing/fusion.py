@@ -106,6 +106,12 @@ def align_layers_to_reference(
             aligned[name] = da
             continue
         try:
+            # CRS is lost on NetCDF round-trip; restore from config before
+            # reproject_match so rioxarray can compute the transform.
+            if da.rio.crs is None:
+                da = da.rio.write_crs(config.CRS)
+            if reference.rio.crs is None:
+                reference = reference.rio.write_crs(config.CRS)
             aligned[name] = da.rio.reproject_match(reference)
         except Exception as exc:
             print(f"[fusion] reproject_match failed for '{name}': {exc}. "
@@ -152,20 +158,42 @@ def weighted_sum(
         return None
 
     reference = next(iter(available.values()))
-    composite = xr.zeros_like(reference).astype(np.float32)
+    ref_shape = reference.values.shape
+
+    # NaN-safe per-pixel weighted sum: at each pixel, sum over only the layers
+    # that have valid (non-NaN) data, renormalizing weights accordingly.
+    # This allows layers with different spatial extents (DEM vs S2 vs SAR) to
+    # each contribute wherever they have coverage.
+    weighted_total = np.zeros(ref_shape, dtype=np.float32)
+    weight_sum = np.zeros(ref_shape, dtype=np.float32)
 
     for name, da in available.items():
         w = weights[name] / total_weight
-        composite = composite + da.astype(np.float32) * w
         print(f"[fusion]   Layer '{name}' weight: {w:.4f}")
+        arr = da.values.astype(np.float32)
+        if arr.shape != ref_shape:
+            print(f"[fusion] Shape mismatch for '{name}': {arr.shape} vs {ref_shape}; skipping layer.")
+            continue
+        valid = np.isfinite(arr)
+        weighted_total = np.where(valid, weighted_total + arr * w, weighted_total)
+        weight_sum = np.where(valid, weight_sum + w, weight_sum)
 
-    composite = composite.rename("composite_score")
+    # Normalize by accumulated weights; pixels with no coverage remain NaN
+    with np.errstate(invalid="ignore", divide="ignore"):
+        composite_arr = np.where(weight_sum > 0, weighted_total / weight_sum, np.nan)
+
+    composite = xr.DataArray(
+        composite_arr.astype(np.float32),
+        coords=reference.coords,
+        dims=reference.dims,
+        name="composite_score",
+    )
     if reference.rio.crs is not None:
         composite = composite.rio.write_crs(reference.rio.crs)
 
     print(
         f"[fusion] Composite score range: "
-        f"[{float(composite.min()):.4f}, {float(composite.max()):.4f}]"
+        f"[{np.nanmin(composite_arr):.4f}, {np.nanmax(composite_arr):.4f}]"
     )
     return composite
 
@@ -243,6 +271,11 @@ def optimize_weights(
     if len(valid_keys) < 2:
         print("[fusion] Not enough layers for optimization; using config weights.")
         return initial_weights
+
+    # Align all layers to a common reference grid before optimizing so that
+    # weighted_sum receives arrays of identical shape.
+    ref_key = next(k for k in valid_keys if layers.get(k) is not None)
+    layers = align_layers_to_reference(layers, reference_key=ref_key)
 
     # Sample background scores across a reference layer
     reference = next(l for l in layers.values() if l is not None)
