@@ -81,8 +81,12 @@ def _create_output_dirs() -> None:
         config.RAW_DATA_DIR,
         config.OUTPUT_DIR,
         config.DEM_DIR,
+        config.COPERNICUS_DEM_DIR,
         config.S2_DIR,
+        config.S2_DRY_DIR,
         config.S1_DIR,
+        config.LANDSAT_DIR,
+        config.GEDI_DIR,
         config.STATIC_MAPS_DIR,
     ]:
         d.mkdir(parents=True, exist_ok=True)
@@ -157,6 +161,57 @@ def main() -> None:
     if s1_bands is None:
         print("  WARNING: Sentinel-1 data unavailable. SAR layers will be skipped.")
 
+    # ── Step 3c: Download Copernicus DEM ─────────────────────────────────────
+    _step("Step 3c/14 — Downloading Copernicus GLO-30 DEM")
+    from data.download_copernicus_dem import get_copernicus_dem
+    cop_dem = get_copernicus_dem(
+        bbox=config.AOI_BBOX_WGS84,
+        output_path=config.COPERNICUS_DEM_PATH,
+        target_crs=config.CRS,
+        force_download=not args.skip_downloads and not config.COPERNICUS_DEM_PATH.exists(),
+    )
+    if cop_dem is None:
+        print("  WARNING: Copernicus DEM unavailable. cop_tpi layer will be skipped.")
+
+    # ── Step 3d: Download dry-season Sentinel-2 ───────────────────────────────
+    _step("Step 3d/14 — Downloading dry-season Sentinel-2 (Mar–May)")
+    from data.download_sentinel2 import get_sentinel2_bands
+    s2_dry_bands = get_sentinel2_bands(
+        bbox=config.AOI_BBOX_WGS84,
+        date_range=config.S2_DRY_SEASON_DATE_RANGE,
+        cloud_threshold=config.S2_CLOUD_THRESHOLD,
+        target_crs=config.CRS,
+        cache_path=config.S2_DRY_COMPOSITE_PATH,
+        force_download=not args.skip_downloads and not config.S2_DRY_COMPOSITE_PATH.exists(),
+    )
+    if s2_dry_bands is None:
+        print("  WARNING: Dry-season S2 unavailable. ndvi_dry layer will be skipped.")
+
+    # ── Step 3e: Download Landsat thermal ────────────────────────────────────
+    _step("Step 3e/14 — Downloading Landsat thermal composite")
+    from data.download_landsat import get_landsat_thermal
+    landsat_thermal_raw = get_landsat_thermal(
+        bbox=config.AOI_BBOX_WGS84,
+        date_range=config.LANDSAT_DATE_RANGE,
+        cloud_threshold=config.LANDSAT_CLOUD_THRESHOLD,
+        target_crs=config.CRS,
+        cache_path=config.LANDSAT_COMPOSITE_PATH,
+        force_download=not args.skip_downloads and not config.LANDSAT_COMPOSITE_PATH.exists(),
+    )
+    if landsat_thermal_raw is None:
+        print("  WARNING: Landsat thermal unavailable. thermal layer will be skipped.")
+
+    # ── Step 3f: Download GEDI ground elevation shots ─────────────────────────
+    _step("Step 3f/14 — Downloading GEDI L2A ground elevation shots")
+    from data.download_gedi import get_gedi_shots
+    gedi_shots_path = get_gedi_shots(
+        bbox=config.AOI_BBOX_WGS84,
+        cache_path=config.GEDI_SHOTS_PATH,
+        force_download=not args.skip_downloads and not config.GEDI_SHOTS_PATH.exists(),
+    )
+    if gedi_shots_path is None:
+        print("  WARNING: GEDI shots unavailable. gedi_relief layer will be skipped.")
+
     # ── Step 4: Load known sites ─────────────────────────────────────────────
     _step("Step 4/14 — Loading known Maya site locations")
     from data.known_sites import get_known_sites, filter_sites_to_bbox
@@ -177,6 +232,16 @@ def main() -> None:
     lrm = terrain["lrm"]
     tpi_large = terrain["tpi_large"]
 
+    # ── Step 5b: Copernicus DEM terrain derivatives ───────────────────────────
+    cop_tpi = None
+    if cop_dem is not None:
+        _step("Step 5b/14 — Computing Copernicus DEM terrain derivatives")
+        from processing.terrain import compute_tpi
+        cop_tpi = compute_tpi(cop_dem, radius=config.TPI_LARGE_RADIUS)
+        if cop_tpi is not None:
+            import xarray as xr
+            cop_tpi = cop_tpi.rename("cop_tpi")
+
     # ── Step 6: Vegetation indices and anomalies ─────────────────────────────
     _step("Step 6/14 — Computing vegetation indices and anomalies")
     from processing.vegetation import compute_all_vegetation_layers
@@ -185,11 +250,25 @@ def main() -> None:
     ndvi = veg_layers["ndvi"]
     ndvi_anomaly = veg_layers["ndvi_anomaly"]
 
+    # ── Step 6b: Dry-season vegetation anomaly ────────────────────────────────
+    ndvi_dry = None
+    if s2_dry_bands is not None:
+        _step("Step 6b/14 — Computing dry-season NDVI anomaly")
+        dry_veg = compute_all_vegetation_layers(s2_dry_bands, ndvi_stack=None)
+        ndvi_dry = dry_veg.get("ndvi_anomaly")
+
     # ── Step 7: SAR anomalies ─────────────────────────────────────────────────
     _step("Step 7/14 — Computing SAR backscatter anomalies")
     from processing.sar import compute_all_sar_layers
     sar_layers = compute_all_sar_layers(s1_bands)
     sar_anomaly = sar_layers["sar_anomaly"]
+
+    # ── Step 7b: Landsat thermal anomaly ──────────────────────────────────────
+    thermal_anomaly = None
+    if landsat_thermal_raw is not None:
+        _step("Step 7b/14 — Computing Landsat thermal anomaly")
+        from processing.thermal import compute_thermal_anomaly
+        thermal_anomaly = compute_thermal_anomaly(landsat_thermal_raw)
 
     # ── Step 8: Geometric lineament detection ────────────────────────────────
     _step("Step 8/14 — Detecting geometric lineament features")
@@ -197,17 +276,36 @@ def main() -> None:
     lineament_density = compute_geometric_anomaly(lrm=lrm, hillshade=hillshade)
     east_sightline = compute_east_sightline(dem, tpi=tpi_large)
 
-    # ── Step 8b: Profile known sites across all layers ───────────────────────
-    _step("Step 8b/14 — Profiling known sites across all layers")
+    # ── Step 8b: GEDI ground elevation interpolation and LRM ─────────────────
+    gedi_relief = None
+    if gedi_shots_path is not None:
+        _step("Step 8b/14 — Interpolating GEDI ground shots onto DEM grid")
+        from processing.gedi_terrain import interpolate_gedi_to_grid, compute_gedi_lrm
+        gedi_elev = interpolate_gedi_to_grid(
+            shots_path=gedi_shots_path,
+            reference_da=lrm if lrm is not None else tpi_large,
+            target_crs=config.CRS,
+            raster_path=config.GEDI_RASTER_PATH,
+            force_recompute=not args.skip_downloads and not config.GEDI_RASTER_PATH.exists(),
+        )
+        if gedi_elev is not None:
+            gedi_relief = compute_gedi_lrm(gedi_elev)
+
+    # ── Step 8c: Profile known sites across all layers ───────────────────────
+    _step("Step 8c/14 — Profiling known sites across all layers")
     from analysis.profile import profile_layer_discrimination
     profile_layer_discrimination(
         layers={
             "tpi":            tpi_large,
             "lrm":            lrm,
-            "ndvi_anomaly":   ndvi,
-            "ndvi_z":         veg_layers["ndvi_anomaly"],
+            "cop_tpi":        cop_tpi,
+            "ndvi_anomaly":   ndvi_anomaly,
+            "ndvi_dry":       ndvi_dry,
+            "sar_anomaly":    sar_anomaly,
+            "thermal":        thermal_anomaly,
             "lineament":      lineament_density,
             "east_sightline": east_sightline,
+            "gedi_relief":    gedi_relief,
         },
         sites_gdf=sites_gdf,
     )
@@ -222,6 +320,10 @@ def main() -> None:
         sar_anomaly=sar_anomaly,
         geometric=lineament_density,
         east_sightline=east_sightline,
+        cop_tpi=cop_tpi,
+        ndvi_dry=ndvi_dry,
+        thermal=thermal_anomaly,
+        gedi_relief=gedi_relief,
         weights=config.FUSION_WEIGHTS,
         output_path=config.COMPOSITE_SCORE_PATH,
     )
@@ -242,6 +344,10 @@ def main() -> None:
             "sar":            normalize_layer(sar_anomaly),
             "geometric":      normalize_layer(lineament_density),
             "east_sightline": normalize_layer(east_sightline),
+            "cop_tpi":        normalize_layer(cop_tpi),
+            "ndvi_dry":       normalize_layer(ndvi_dry, invert=True),
+            "thermal":        normalize_layer(thermal_anomaly),
+            "gedi_relief":    normalize_layer(gedi_relief),
         }
 
         optimized_weights = optimize_weights(
@@ -257,6 +363,10 @@ def main() -> None:
             sar_anomaly=sar_anomaly,
             geometric=lineament_density,
             east_sightline=east_sightline,
+            cop_tpi=cop_tpi,
+            ndvi_dry=ndvi_dry,
+            thermal=thermal_anomaly,
+            gedi_relief=gedi_relief,
             weights=optimized_weights,
             output_path=config.OPTIMIZED_SCORE_PATH,
         )

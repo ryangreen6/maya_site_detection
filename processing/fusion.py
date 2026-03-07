@@ -347,24 +347,30 @@ def fuse_layers(
     sar_anomaly: Optional[xr.DataArray],
     geometric: Optional[xr.DataArray],
     east_sightline: Optional[xr.DataArray] = None,
+    cop_tpi: Optional[xr.DataArray] = None,
+    ndvi_dry: Optional[xr.DataArray] = None,
+    thermal: Optional[xr.DataArray] = None,
+    gedi_relief: Optional[xr.DataArray] = None,
     weights: dict[str, float] = config.FUSION_WEIGHTS,
     output_path: Path = config.COMPOSITE_SCORE_PATH,
 ) -> Optional[xr.DataArray]:
     """Fuse all anomaly layers into a normalized composite site probability score.
 
-    Normalizes each layer, aligns all to the TPI/LRM grid (DEM resolution),
-    applies the weighted sum, saves the result as a GeoTIFF, and returns the
-    composite DataArray.
+    Normalizes each layer, aligns all to the LRM/TPI grid, applies the
+    weighted sum, saves the result as a GeoTIFF, and returns the composite.
 
     Args:
-        tpi: Topographic Position Index DataArray (large-scale preferred).
-        lrm: Local Relief Model DataArray.
+        tpi: Topographic Position Index DataArray (large-scale, SRTM).
+        lrm: Local Relief Model DataArray (SRTM).
         ndvi_anomaly: NDVI anomaly z-score DataArray.
         sar_anomaly: Combined SAR anomaly DataArray.
         geometric: Lineament density DataArray.
         east_sightline: East-facing elevated feature with open eastern horizon.
-        weights: Dictionary of layer weights (keys: tpi, lrm, ndvi, sar,
-                 geometric, east_sightline).
+        cop_tpi: TPI computed from Copernicus DEM.
+        ndvi_dry: Dry-season NDVI anomaly z-score.
+        thermal: Landsat thermal anomaly z-score.
+        gedi_relief: Local Relief Model from GEDI ground elevation.
+        weights: Layer weights (keys must match layer names used internally).
         output_path: Path to save the GeoTIFF composite score.
 
     Returns:
@@ -377,16 +383,22 @@ def fuse_layers(
         "sar": sar_anomaly,
         "geometric": geometric,
         "east_sightline": east_sightline,
+        "cop_tpi": cop_tpi,
+        "ndvi_dry": ndvi_dry,
+        "thermal": thermal,
+        "gedi_relief": gedi_relief,
     }
 
+    # Layers where low values indicate anomaly → invert so high score = anomaly
+    invert_layers = {"ndvi", "ndvi_dry"}
+
     print("[fusion] Normalizing layers ...")
-    # NDVI anomaly: invert so negative (stressed vegetation) → high score
     normalized: dict[str, Optional[xr.DataArray]] = {}
     for name, da in raw_layers.items():
         if da is None:
             normalized[name] = None
             continue
-        invert = name == "ndvi"
+        invert = name in invert_layers
         norm = normalize_layer(da, invert=invert)
         if norm is not None:
             norm = norm.rename(name)
