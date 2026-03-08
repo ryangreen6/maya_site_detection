@@ -42,7 +42,7 @@ def _open_catalog():
 
 
 def search_sentinel1_scenes(
-    bbox: tuple[float, float, float, float] = config.SITE_CORE_BBOX,
+    bbox: tuple[float, float, float, float],
     date_range: tuple[str, str],
 ) -> list:
     """Search Planetary Computer for Sentinel-1 GRD scenes.

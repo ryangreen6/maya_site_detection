@@ -48,7 +48,7 @@ def _open_catalog():
 
 
 def search_sentinel2_scenes(
-    bbox: tuple[float, float, float, float] = config.SITE_CORE_BBOX,
+    bbox: tuple[float, float, float, float],
     date_range: tuple[str, str],
     cloud_threshold: int,
 ) -> list:
