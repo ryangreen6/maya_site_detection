@@ -15,6 +15,7 @@ from typing import Optional
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
+import matplotlib.patheffects as pe
 import xarray as xr
 import geopandas as gpd
 
@@ -36,18 +37,21 @@ def plot_composite_score(
     score: xr.DataArray,
     sites_gdf: Optional[gpd.GeoDataFrame] = None,
     candidates_gdf: Optional[gpd.GeoDataFrame] = None,
+    hillshade: Optional[xr.DataArray] = None,
     threshold: float = config.COMPOSITE_SCORE_THRESHOLD,
     output_path: Path = config.STATIC_MAPS_DIR / "composite_score.png",
 ) -> None:
-    """Plot the composite site probability score with overlaid detections.
+    """Plot the composite site probability score over a DEM hillshade.
 
-    Known sites are shown as circles; candidate detections as stars.
-    The detection threshold contour is drawn over the score surface.
+    The DEM hillshade is drawn as a grayscale base layer; the composite
+    score is overlaid with 60% opacity. Known sites are labeled by name;
+    consolidated candidate detections are shown as stars.
 
     Args:
         score: Composite score DataArray (values in [0, 1]).
         sites_gdf: GeoDataFrame of known Maya site locations.
-        candidates_gdf: GeoDataFrame of candidate detections from extract_candidates.
+        candidates_gdf: Pre-consolidated GeoDataFrame of candidate detections.
+        hillshade: Optional hillshade DataArray for the background layer.
         threshold: Composite score threshold; used to draw a contour line.
         output_path: Path to save the PNG.
     """
@@ -56,48 +60,82 @@ def plot_composite_score(
         return
 
     arr, extent = _raster_to_display(score)
-    fig, ax = plt.subplots(figsize=(12, 9))
+    fig, ax = plt.subplots(figsize=(14, 11))
 
-    # Score surface with white → dark red ramp
+    # --- Background: DEM hillshade ---
+    if hillshade is not None:
+        try:
+            hs_arr, hs_extent = _raster_to_display(hillshade)
+            ax.imshow(
+                hs_arr, cmap="gray", extent=hs_extent,
+                origin="upper", vmin=0, vmax=255, zorder=1,
+            )
+        except Exception:
+            pass
+
+    # --- Composite score overlay (semi-transparent) ---
     cmap = mcolors.LinearSegmentedColormap.from_list(
-        "site_prob", ["white", "#FFF5EB", "#FD8D3C", "#D94701", "#7F0000"]
+        "site_prob", ["#00000000", "#FFF5EB80", "#FD8D3C", "#D94701", "#7F0000"]
     )
-    im = ax.imshow(arr, cmap=cmap, extent=extent, origin="upper", vmin=0, vmax=1)
-    plt.colorbar(im, ax=ax, fraction=0.03, pad=0.02, label="Composite Score (0–1)")
+    # Mask low-scoring pixels to keep them transparent over the hillshade
+    display_arr = np.where(arr >= threshold, arr, np.nan)
+    im = ax.imshow(
+        display_arr, cmap=cmap, extent=extent,
+        origin="upper", vmin=threshold, vmax=1.0,
+        alpha=0.75, zorder=2,
+    )
+    cbar = plt.colorbar(im, ax=ax, fraction=0.03, pad=0.02)
+    cbar.set_label(f"Composite Score (≥{threshold})", fontsize=10)
 
-    # Threshold contour
-    try:
-        x = score.coords["x"].values
-        y = score.coords["y"].values
-        ax.contour(
-            x, y, np.flipud(arr),
-            levels=[threshold], colors=["cyan"], linewidths=1.2, linestyles="--"
-        )
-    except Exception:
-        pass
-
-    # Known sites
-    _overlay_sites(ax, sites_gdf, label="Known sites", color="blue", marker="o")
-
-    # Candidate detections
+    # --- Candidate sites (consolidated) ---
     if candidates_gdf is not None and not candidates_gdf.empty:
         try:
             cxs = candidates_gdf.geometry.x.values
             cys = candidates_gdf.geometry.y.values
             ax.scatter(
-                cxs, cys, c="yellow", s=80, marker="*",
-                edgecolors="black", linewidths=0.6, zorder=6, label="Candidates"
+                cxs, cys, c="yellow", s=120, marker="*",
+                edgecolors="#333333", linewidths=0.7, zorder=6,
+                label=f"Candidate sites (n={len(candidates_gdf)})",
             )
         except Exception:
             pass
 
-    if (sites_gdf is not None and not sites_gdf.empty) or \
-       (candidates_gdf is not None and not candidates_gdf.empty):
-        ax.legend(loc="lower right", fontsize=9)
+    # --- Known sites: markers + name labels ---
+    if sites_gdf is not None and not sites_gdf.empty:
+        try:
+            xs = sites_gdf.geometry.x.values
+            ys = sites_gdf.geometry.y.values
+            ax.scatter(
+                xs, ys, c="dodgerblue", s=60, marker="o",
+                edgecolors="white", linewidths=1.2, zorder=7,
+                label=f"Known Maya sites (n={len(sites_gdf)})",
+            )
+            name_col = "site_name" if "site_name" in sites_gdf.columns else sites_gdf.columns[0]
+            for x, y, name in zip(xs, ys, sites_gdf[name_col]):
+                ax.annotate(
+                    str(name),
+                    xy=(x, y),
+                    xytext=(5, 5),
+                    textcoords="offset points",
+                    fontsize=7,
+                    fontweight="bold",
+                    color="white",
+                    zorder=8,
+                    path_effects=[
+                        pe.withStroke(linewidth=2, foreground="black")
+                    ],
+                )
+        except Exception as exc:
+            print(f"[composite] Site label error: {exc}")
 
+    ax.legend(loc="lower right", fontsize=9, framealpha=0.8)
     _add_north_arrow(ax)
     _add_scale_bar(ax, extent[0], extent[1])
-    ax.set_title("Composite Site Probability Score — Northern Petén, Guatemala", fontsize=13)
+    ax.set_title(
+        "Composite Site Probability — Northern Petén, Guatemala\n"
+        "GEDI ground LRM · NDVI anomaly · SAR backscatter",
+        fontsize=12,
+    )
     ax.set_xlabel("Easting (m, UTM 16N)")
     ax.set_ylabel("Northing (m, UTM 16N)")
     _save_fig(fig, output_path)
@@ -307,8 +345,12 @@ def generate_all_composite_figures(
     """
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    # Consolidate raw candidate clusters into distinct site locations
+    from analysis.candidates import consolidate_candidates
+    consolidated = consolidate_candidates(candidates_gdf, distance_m=500.0)
+
     plot_composite_score(
-        score, sites_gdf, candidates_gdf,
+        score, sites_gdf, consolidated, hillshade=hillshade,
         output_path=output_dir / "composite_score.png"
     )
     plot_layer_panel(

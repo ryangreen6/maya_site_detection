@@ -245,3 +245,39 @@ def extract_candidates(
         print(f"[candidates] Could not save GeoJSON: {exc}")
 
     return gdf
+
+
+def consolidate_candidates(
+    candidates_gdf: gpd.GeoDataFrame,
+    distance_m: float = 500.0,
+) -> gpd.GeoDataFrame:
+    """Merge candidate sites within *distance_m* metres of each other.
+
+    Buffers each candidate centroid by half the distance, unions overlapping
+    buffers, and returns the centroid of each merged group. Reduces thousands
+    of raw clusters to a more interpretable set of distinct candidate locations.
+
+    Args:
+        candidates_gdf: GeoDataFrame of candidate centroids (Point geometry).
+        distance_m: Maximum centre-to-centre distance for merging (metres).
+
+    Returns:
+        GeoDataFrame of consolidated candidate Points (same CRS).
+    """
+    if candidates_gdf is None or candidates_gdf.empty:
+        return candidates_gdf
+
+    from shapely.ops import unary_union
+
+    buffered = candidates_gdf.geometry.buffer(distance_m / 2.0)
+    union = unary_union(buffered)
+    parts = list(union.geoms) if union.geom_type == "MultiPolygon" else [union]
+    consolidated = gpd.GeoDataFrame(
+        {"geometry": [p.centroid for p in parts]},
+        crs=candidates_gdf.crs,
+    )
+    print(
+        f"[candidates] Consolidated {len(candidates_gdf)} raw candidates → "
+        f"{len(consolidated)} sites (merge radius {distance_m:.0f} m)."
+    )
+    return consolidated
