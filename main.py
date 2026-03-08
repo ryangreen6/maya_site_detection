@@ -270,10 +270,9 @@ def main() -> None:
         from processing.thermal import compute_thermal_anomaly
         thermal_anomaly = compute_thermal_anomaly(landsat_thermal_raw)
 
-    # ── Step 8: Geometric lineament detection ────────────────────────────────
-    _step("Step 8/14 — Detecting geometric lineament features")
-    from processing.geometry import compute_geometric_anomaly, compute_east_sightline
-    lineament_density = compute_geometric_anomaly(lrm=lrm, hillshade=hillshade)
+    # ── Step 8: East-facing horizon sightline ────────────────────────────────
+    _step("Step 8/14 — Computing east-facing horizon sightline score")
+    from processing.geometry import compute_east_sightline
     east_sightline = compute_east_sightline(dem, tpi=tpi_large)
 
     # ── Step 8b: GEDI ground elevation interpolation and LRM ─────────────────
@@ -303,7 +302,6 @@ def main() -> None:
             "ndvi_dry":       ndvi_dry,
             "sar_anomaly":    sar_anomaly,
             "thermal":        thermal_anomaly,
-            "lineament":      lineament_density,
             "east_sightline": east_sightline,
             "gedi_relief":    gedi_relief,
         },
@@ -318,7 +316,6 @@ def main() -> None:
         lrm=lrm,
         ndvi_anomaly=ndvi_anomaly,
         sar_anomaly=sar_anomaly,
-        geometric=lineament_density,
         east_sightline=east_sightline,
         cop_tpi=cop_tpi,
         ndvi_dry=ndvi_dry,
@@ -342,7 +339,6 @@ def main() -> None:
             "lrm":            normalize_layer(lrm),
             "ndvi":           normalize_layer(ndvi_anomaly, invert=True),
             "sar":            normalize_layer(sar_anomaly),
-            "geometric":      normalize_layer(lineament_density),
             "east_sightline": normalize_layer(east_sightline),
             "cop_tpi":        normalize_layer(cop_tpi),
             "ndvi_dry":       normalize_layer(ndvi_dry, invert=True),
@@ -361,7 +357,6 @@ def main() -> None:
             lrm=lrm,
             ndvi_anomaly=ndvi_anomaly,
             sar_anomaly=sar_anomaly,
-            geometric=lineament_density,
             east_sightline=east_sightline,
             cop_tpi=cop_tpi,
             ndvi_dry=ndvi_dry,
@@ -387,7 +382,7 @@ def main() -> None:
         "lrm": lrm,
         "ndvi": ndvi_anomaly,
         "sar": sar_anomaly,
-        "geometric": lineament_density,
+        "east_sightline": east_sightline,
     }
 
     candidates_gdf = extract_candidates(
@@ -438,7 +433,7 @@ def main() -> None:
         lrm=lrm,
         ndvi_anomaly=ndvi_anomaly,
         sar_anomaly=sar_anomaly,
-        lineament_density=lineament_density,
+        east_sightline=east_sightline,
         sites_gdf=sites_gdf,
         output_dir=config.STATIC_MAPS_DIR,
     )
@@ -452,7 +447,7 @@ def main() -> None:
         lrm=lrm,
         ndvi_anomaly=ndvi_anomaly,
         sar_anomaly=sar_anomaly,
-        geometric=lineament_density,
+        east_sightline=east_sightline,
         sites_gdf=sites_gdf,
         candidates_gdf=candidates_gdf,
         site_scores=site_scores,

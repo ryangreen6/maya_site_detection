@@ -101,19 +101,19 @@ FUSION_WEIGHTS: dict[str, float] = {
     # --- Strongly discriminating layers (Cohen d > 0.5 from profiling) ---
     # GEDI canopy-penetrating ground LRM — highest discriminator (d=1.24)
     "gedi_relief": 0.45,
-    # NDVI anomaly — sites consistently higher than background (d=0.85)
+    # NDVI anomaly — sites consistently lower than surrounding jungle (d=0.85)
     "ndvi": 0.35,
     # SAR backscatter anomaly — moderate signal (d=0.60)
     "sar": 0.20,
-    # --- Weakly/non-discriminating layers — zeroed out ---
-    # tpi, lrm, cop_tpi, ndvi_dry, geometric, east_sightline, thermal
-    # all have |Cohen d| < 0.4 and are excluded to avoid diluting the signal.
+    # East-facing sightline — generated but zeroed out of composite:
+    # at 30m SRTM resolution over flat lowland jungle, major sites score
+    # *lower* than background (Cohen d = −0.21). Kept for visualization only.
+    "east_sightline": 0.0,
+    # --- Other non-discriminating layers --- zeroed out ---
     "tpi": 0.0,
     "lrm": 0.0,
     "cop_tpi": 0.0,
     "ndvi_dry": 0.0,
-    "geometric": 0.0,
-    "east_sightline": 0.0,
     "thermal": 0.0,
 }
 
@@ -131,14 +131,6 @@ HILLSHADE_ALTITUDE: int = 20     # Sun elevation angle in degrees
 TPI_SMALL_RADIUS: int = 3        # Small-scale TPI neighborhood radius (pixels)
 TPI_LARGE_RADIUS: int = 15       # Large-scale TPI neighborhood radius (pixels)
 LRM_GAUSSIAN_SIGMA: float = 50.0 # Gaussian sigma in pixels for LRM low-pass filter
-
-# ---------------------------------------------------------------------------
-# Geometry / lineament detection parameters
-# ---------------------------------------------------------------------------
-CANNY_SIGMA: float = 2.0          # Gaussian blur sigma for Canny edge detection
-HOUGH_THRESHOLD: int = 10         # Minimum votes in Hough accumulator
-LINEAMENT_DENSITY_RADIUS: int = 15  # Neighborhood radius for density map (pixels)
-CARDINAL_AZIMUTHS: list[int] = [0, 45, 90, 135]  # Target orientations in degrees
 
 # ---------------------------------------------------------------------------
 # East sightline parameters

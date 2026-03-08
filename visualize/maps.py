@@ -1,9 +1,8 @@
 """maps.py — Generate publication-quality static maps for each analysis layer.
 
 Produces one PNG per layer (hillshade, LRM, NDVI anomaly, SAR anomaly,
-lineament density) with known site locations overlaid. Each map includes
-a colorbar, north arrow, scale bar, and title. Uses matplotlib with
-optional contextily basemap tiles.
+east sightline score) with known site locations overlaid. Each map includes
+a colorbar, north arrow, scale bar, and title.
 """
 
 from pathlib import Path
@@ -311,33 +310,35 @@ def map_sar_anomaly(
     _save_fig(fig, output_path)
 
 
-def map_lineament_density(
-    lineament_density: xr.DataArray,
+def map_east_sightline(
+    east_sightline: xr.DataArray,
     sites_gdf: Optional[gpd.GeoDataFrame] = None,
-    output_path: Path = config.STATIC_MAPS_DIR / "lineament_density.png",
+    output_path: Path = config.STATIC_MAPS_DIR / "east_sightline.png",
 ) -> None:
-    """Produce a geometric lineament density map.
+    """Produce an east-facing horizon sightline score map.
 
     Args:
-        lineament_density: Lineament density DataArray (line pixels per window).
+        east_sightline: East sightline score DataArray (values in [0, 1]).
         sites_gdf: Optional GeoDataFrame of known site locations.
         output_path: Path to save the PNG.
     """
-    if lineament_density is None:
-        print("[maps] Lineament density is None; skipping map.")
+    if east_sightline is None:
+        print("[maps] East sightline is None; skipping map.")
         return
 
-    arr, extent = _raster_to_display(lineament_density)
+    arr, extent = _raster_to_display(east_sightline)
     fig, ax = plt.subplots(figsize=(10, 8))
-    im = ax.imshow(arr, cmap="hot_r", extent=extent, origin="upper")
-    plt.colorbar(im, ax=ax, fraction=0.03, pad=0.02, label="Lineament Density")
+    im = ax.imshow(arr, cmap="YlOrRd", extent=extent, origin="upper", vmin=0, vmax=1)
+    plt.colorbar(im, ax=ax, fraction=0.03, pad=0.02, label="East Sightline Score (0–1)")
     _overlay_sites(ax, sites_gdf)
     if sites_gdf is not None and not sites_gdf.empty:
         ax.legend(loc="lower right", fontsize=9)
     _add_north_arrow(ax)
     _add_scale_bar(ax, extent[0], extent[1])
     ax.set_title(
-        "Geometric Lineament Density — Northern Petén, Guatemala", fontsize=13
+        "East-Facing Horizon Sightline — Northern Petén, Guatemala\n"
+        "Elevated · East-facing aspect · Open eastern horizon",
+        fontsize=13,
     )
     ax.set_xlabel("Easting (m, UTM 16N)")
     ax.set_ylabel("Northing (m, UTM 16N)")
@@ -353,7 +354,7 @@ def generate_all_layer_maps(
     lrm: Optional[xr.DataArray],
     ndvi_anomaly: Optional[xr.DataArray],
     sar_anomaly: Optional[xr.DataArray],
-    lineament_density: Optional[xr.DataArray],
+    east_sightline: Optional[xr.DataArray],
     sites_gdf: Optional[gpd.GeoDataFrame],
     output_dir: Path = config.STATIC_MAPS_DIR,
 ) -> None:
@@ -364,7 +365,7 @@ def generate_all_layer_maps(
         lrm: Local Relief Model DataArray.
         ndvi_anomaly: NDVI anomaly DataArray.
         sar_anomaly: SAR anomaly DataArray.
-        lineament_density: Lineament density DataArray.
+        east_sightline: East-facing horizon sightline score DataArray.
         sites_gdf: GeoDataFrame of known Maya site locations.
         output_dir: Directory where PNG files will be saved.
     """
@@ -373,5 +374,5 @@ def generate_all_layer_maps(
     map_lrm(lrm, sites_gdf, output_dir / "lrm.png")
     map_ndvi_anomaly(ndvi_anomaly, sites_gdf, output_dir / "ndvi_anomaly.png")
     map_sar_anomaly(sar_anomaly, sites_gdf, output_dir / "sar_anomaly.png")
-    map_lineament_density(lineament_density, sites_gdf, output_dir / "lineament_density.png")
+    map_east_sightline(east_sightline, sites_gdf, output_dir / "east_sightline.png")
     print("[maps] All layer maps generated.")

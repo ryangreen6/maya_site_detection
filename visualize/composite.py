@@ -150,7 +150,7 @@ def plot_layer_panel(
     lrm: Optional[xr.DataArray],
     ndvi_anomaly: Optional[xr.DataArray],
     sar_anomaly: Optional[xr.DataArray],
-    geometric: Optional[xr.DataArray],
+    east_sightline: Optional[xr.DataArray],
     score: Optional[xr.DataArray],
     output_path: Path = config.STATIC_MAPS_DIR / "layer_panel.png",
 ) -> None:
@@ -161,7 +161,7 @@ def plot_layer_panel(
         lrm: Local Relief Model DataArray.
         ndvi_anomaly: NDVI anomaly DataArray.
         sar_anomaly: SAR anomaly DataArray.
-        geometric: Lineament density DataArray.
+        east_sightline: East-facing horizon sightline score DataArray.
         score: Composite score DataArray.
         output_path: Path to save the PNG.
     """
@@ -170,7 +170,7 @@ def plot_layer_panel(
         (lrm, "Local Relief Model", "RdBu_r", "symmetric", None),
         (ndvi_anomaly, "NDVI Anomaly (z-score)", "RdYlGn", "symmetric", None),
         (sar_anomaly, "SAR Anomaly (z-score)", "PuOr", "symmetric", None),
-        (geometric, "Lineament Density", "hot_r", None, None),
+        (east_sightline, "East Sightline Score", "YlOrRd", None, None),
         (score, "Composite Score", None, None, "site_prob"),
     ]
 
@@ -319,7 +319,7 @@ def generate_all_composite_figures(
     lrm: Optional[xr.DataArray],
     ndvi_anomaly: Optional[xr.DataArray],
     sar_anomaly: Optional[xr.DataArray],
-    geometric: Optional[xr.DataArray],
+    east_sightline: Optional[xr.DataArray],
     sites_gdf: Optional[gpd.GeoDataFrame],
     candidates_gdf: Optional[gpd.GeoDataFrame],
     site_scores: Optional[np.ndarray],
@@ -335,7 +335,7 @@ def generate_all_composite_figures(
         lrm: LRM DataArray.
         ndvi_anomaly: NDVI anomaly DataArray.
         sar_anomaly: SAR anomaly DataArray.
-        geometric: Lineament density DataArray.
+        east_sightline: East-facing horizon sightline score DataArray.
         sites_gdf: GeoDataFrame of known sites.
         candidates_gdf: GeoDataFrame of candidate detections.
         site_scores: Array of composite scores at known sites.
@@ -354,7 +354,7 @@ def generate_all_composite_figures(
         output_path=output_dir / "composite_score.png"
     )
     plot_layer_panel(
-        hillshade, lrm, ndvi_anomaly, sar_anomaly, geometric, score,
+        hillshade, lrm, ndvi_anomaly, sar_anomaly, east_sightline, score,
         output_path=output_dir / "layer_panel.png"
     )
     if site_scores is not None and bg_scores is not None:

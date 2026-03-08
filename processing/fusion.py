@@ -350,7 +350,6 @@ def fuse_layers(
     lrm: Optional[xr.DataArray],
     ndvi_anomaly: Optional[xr.DataArray],
     sar_anomaly: Optional[xr.DataArray],
-    geometric: Optional[xr.DataArray],
     east_sightline: Optional[xr.DataArray] = None,
     cop_tpi: Optional[xr.DataArray] = None,
     ndvi_dry: Optional[xr.DataArray] = None,
@@ -369,7 +368,6 @@ def fuse_layers(
         lrm: Local Relief Model DataArray (SRTM).
         ndvi_anomaly: NDVI anomaly z-score DataArray.
         sar_anomaly: Combined SAR anomaly DataArray.
-        geometric: Lineament density DataArray.
         east_sightline: East-facing elevated feature with open eastern horizon.
         cop_tpi: TPI computed from Copernicus DEM.
         ndvi_dry: Dry-season NDVI anomaly z-score.
@@ -386,7 +384,6 @@ def fuse_layers(
         "lrm": lrm,
         "ndvi": ndvi_anomaly,
         "sar": sar_anomaly,
-        "geometric": geometric,
         "east_sightline": east_sightline,
         "cop_tpi": cop_tpi,
         "ndvi_dry": ndvi_dry,
