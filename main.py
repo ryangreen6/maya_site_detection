@@ -126,7 +126,7 @@ def main() -> None:
     _step("Step 2/14 — Downloading SRTM DEM")
     from data.download_dem import get_dem
     dem = get_dem(
-        bbox=config.AOI_BBOX_WGS84,
+        bbox=config.SITE_CORE_BBOX,
         output_path=config.DEM_PATH,
         target_crs=config.CRS,
         force_download=not args.skip_downloads and not config.DEM_PATH.exists(),
@@ -138,7 +138,7 @@ def main() -> None:
     _step("Step 3a/14 — Downloading Sentinel-2 L2A composite")
     from data.download_sentinel2 import get_sentinel2_bands
     s2_bands = get_sentinel2_bands(
-        bbox=config.AOI_BBOX_WGS84,
+        bbox=config.SITE_CORE_BBOX,
         date_range=config.S2_DATE_RANGE,
         cloud_threshold=config.S2_CLOUD_THRESHOLD,
         target_crs=config.CRS,
@@ -152,7 +152,7 @@ def main() -> None:
     _step("Step 3b/14 — Downloading Sentinel-1 GRD composite")
     from data.download_sentinel1 import get_sentinel1_bands
     s1_bands = get_sentinel1_bands(
-        bbox=config.AOI_BBOX_WGS84,
+        bbox=config.SITE_CORE_BBOX,
         date_range=config.S1_DATE_RANGE,
         target_crs=config.CRS,
         cache_path=config.S1_COMPOSITE_PATH,
@@ -165,7 +165,7 @@ def main() -> None:
     _step("Step 3c/14 — Downloading Copernicus GLO-30 DEM")
     from data.download_copernicus_dem import get_copernicus_dem
     cop_dem = get_copernicus_dem(
-        bbox=config.AOI_BBOX_WGS84,
+        bbox=config.SITE_CORE_BBOX,
         output_path=config.COPERNICUS_DEM_PATH,
         target_crs=config.CRS,
         force_download=not args.skip_downloads and not config.COPERNICUS_DEM_PATH.exists(),
@@ -177,7 +177,7 @@ def main() -> None:
     _step("Step 3d/14 — Downloading dry-season Sentinel-2 (Mar–May)")
     from data.download_sentinel2 import get_sentinel2_bands
     s2_dry_bands = get_sentinel2_bands(
-        bbox=config.AOI_BBOX_WGS84,
+        bbox=config.SITE_CORE_BBOX,
         date_range=config.S2_DRY_SEASON_DATE_RANGE,
         cloud_threshold=config.S2_CLOUD_THRESHOLD,
         target_crs=config.CRS,
@@ -191,7 +191,7 @@ def main() -> None:
     _step("Step 3e/14 — Downloading Landsat thermal composite")
     from data.download_landsat import get_landsat_thermal
     landsat_thermal_raw = get_landsat_thermal(
-        bbox=config.AOI_BBOX_WGS84,
+        bbox=config.SITE_CORE_BBOX,
         date_range=config.LANDSAT_DATE_RANGE,
         cloud_threshold=config.LANDSAT_CLOUD_THRESHOLD,
         target_crs=config.CRS,
@@ -205,7 +205,7 @@ def main() -> None:
     _step("Step 3f/14 — Downloading GEDI L2A ground elevation shots")
     from data.download_gedi import get_gedi_shots
     gedi_shots_path = get_gedi_shots(
-        bbox=config.AOI_BBOX_WGS84,
+        bbox=config.SITE_CORE_BBOX,
         cache_path=config.GEDI_SHOTS_PATH,
         force_download=not args.skip_downloads and not config.GEDI_SHOTS_PATH.exists(),
     )

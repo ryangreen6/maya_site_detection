@@ -42,7 +42,7 @@ def _open_catalog():
 
 
 def search_sentinel1_scenes(
-    bbox: tuple[float, float, float, float],
+    bbox: tuple[float, float, float, float] = config.SITE_CORE_BBOX,
     date_range: tuple[str, str],
 ) -> list:
     """Search Planetary Computer for Sentinel-1 GRD scenes.
@@ -254,7 +254,7 @@ def build_s1_composite(
 
 
 def get_sentinel1_bands(
-    bbox: tuple[float, float, float, float] = config.AOI_BBOX_WGS84,
+    bbox: tuple[float, float, float, float] = config.SITE_CORE_BBOX,
     date_range: tuple[str, str] = config.S1_DATE_RANGE,
     target_crs: str = config.CRS,
     cache_path: Path = config.S1_COMPOSITE_PATH,

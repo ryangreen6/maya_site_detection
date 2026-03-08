@@ -29,7 +29,7 @@ def _get_api_key() -> str:
 
 
 def download_srtm(
-    bbox: tuple[float, float, float, float] = config.AOI_BBOX_WGS84,
+    bbox: tuple[float, float, float, float] = config.SITE_CORE_BBOX,
     output_path: Path = config.DEM_PATH,
     dem_type: str = "SRTMGL1",
 ) -> Optional[Path]:
@@ -108,7 +108,7 @@ def download_srtm(
 
 def load_and_clip_dem(
     dem_path: Path = config.DEM_PATH,
-    bbox: tuple[float, float, float, float] = config.AOI_BBOX_WGS84,
+    bbox: tuple[float, float, float, float] = config.SITE_CORE_BBOX,
     target_crs: str = config.CRS,
 ) -> Optional[xr.DataArray]:
     """Load a GeoTIFF DEM, clip to the AOI, and reproject to the target CRS.
@@ -146,7 +146,7 @@ def load_and_clip_dem(
 
 
 def get_dem(
-    bbox: tuple[float, float, float, float] = config.AOI_BBOX_WGS84,
+    bbox: tuple[float, float, float, float] = config.SITE_CORE_BBOX,
     output_path: Path = config.DEM_PATH,
     target_crs: str = config.CRS,
     force_download: bool = False,

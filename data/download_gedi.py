@@ -54,7 +54,7 @@ def _check_credentials() -> tuple[str, str]:
 
 
 def get_gedi_shots(
-    bbox: tuple[float, float, float, float] = config.AOI_BBOX_WGS84,
+    bbox: tuple[float, float, float, float] = config.SITE_CORE_BBOX,
     cache_path: Path = config.GEDI_SHOTS_PATH,
     force_download: bool = False,
     max_granules: int = 30,

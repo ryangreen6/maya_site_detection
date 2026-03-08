@@ -13,6 +13,11 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 AOI_BBOX_WGS84: tuple[float, float, float, float] = (-91.5, 16.5, -89.0, 18.2)  # Extended north to include Calakmul (18.1°N)
 
+# Tight bbox enclosing all 15 known sites + ~17 km buffer on each edge.
+# All remote-sensing downloads use this bbox so every dataset covers the
+# site-dense area (Tintal → Naranjo E–W, Yaxhá → Calakmul N–S).
+SITE_CORE_BBOX: tuple[float, float, float, float] = (-90.22, 16.93, -89.21, 18.25)
+
 # Target projected CRS for all analysis layers (UTM Zone 16N)
 CRS: str = "EPSG:32616"
 

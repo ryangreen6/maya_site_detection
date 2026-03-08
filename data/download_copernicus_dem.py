@@ -18,7 +18,7 @@ import config
 
 
 def get_copernicus_dem(
-    bbox: tuple[float, float, float, float] = config.AOI_BBOX_WGS84,
+    bbox: tuple[float, float, float, float] = config.SITE_CORE_BBOX,
     output_path: Path = config.COPERNICUS_DEM_PATH,
     target_crs: str = config.CRS,
     force_download: bool = False,

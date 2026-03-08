@@ -21,7 +21,7 @@ import config
 
 
 def get_landsat_thermal(
-    bbox: tuple[float, float, float, float] = config.AOI_BBOX_WGS84,
+    bbox: tuple[float, float, float, float] = config.SITE_CORE_BBOX,
     date_range: tuple[str, str] = config.LANDSAT_DATE_RANGE,
     cloud_threshold: int = config.LANDSAT_CLOUD_THRESHOLD,
     target_crs: str = config.CRS,

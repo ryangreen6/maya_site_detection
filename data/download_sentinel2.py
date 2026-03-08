@@ -48,7 +48,7 @@ def _open_catalog():
 
 
 def search_sentinel2_scenes(
-    bbox: tuple[float, float, float, float],
+    bbox: tuple[float, float, float, float] = config.SITE_CORE_BBOX,
     date_range: tuple[str, str],
     cloud_threshold: int,
 ) -> list:
@@ -323,7 +323,7 @@ def reproject_to_project_crs(
 
 
 def get_sentinel2_bands(
-    bbox: tuple[float, float, float, float] = config.AOI_BBOX_WGS84,
+    bbox: tuple[float, float, float, float] = config.SITE_CORE_BBOX,
     date_range: tuple[str, str] = config.S2_DATE_RANGE,
     cloud_threshold: int = config.S2_CLOUD_THRESHOLD,
     target_crs: str = config.CRS,
