@@ -82,8 +82,27 @@ def search_sentinel1_scenes(
         print("[download_sentinel1] No Sentinel-1 scenes found.")
         return []
 
-    print(f"[download_sentinel1] Found {len(items)} Sentinel-1 scenes.")
-    return items
+    # Group by relative orbit number so that each orbital track is represented.
+    # S1 IW swaths are ~250 km wide; for a ~270 km × 190 km AOI we need at
+    # least 2–3 distinct tracks to achieve full spatial coverage.  Taking only
+    # chronological scenes risks selecting many scenes from the same swath.
+    from collections import defaultdict
+    orbit_groups: dict[int, list] = defaultdict(list)
+    for item in items:
+        orbit = item.properties.get("sat:relative_orbit", 0)
+        orbit_groups[orbit].append(item)
+
+    # From each orbit, take up to 4 scenes (temporal spread for speckle averaging)
+    selected = []
+    for orbit, orbit_items in orbit_groups.items():
+        selected.extend(orbit_items[:4])
+
+    print(
+        f"[download_sentinel1] Found {len(items)} scenes across "
+        f"{len(orbit_groups)} relative orbits; selected {len(selected)} "
+        f"for compositing (up to 4 per orbit)."
+    )
+    return selected
 
 
 def _resolve_polarization_asset(item, polarization: str) -> Optional[str]:
@@ -175,7 +194,7 @@ def _load_polarization_band(
 def build_s1_composite(
     items: list,
     polarizations: list[str] = ["VV", "VH"],
-    max_scenes: int = 10,
+    max_scenes: int = 40,
     bbox_wgs84: Optional[tuple[float, float, float, float]] = None,
 ) -> Optional[dict[str, xr.DataArray]]:
     """Build a multi-temporal median composite for each SAR polarization.

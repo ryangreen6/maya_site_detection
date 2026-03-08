@@ -89,9 +89,27 @@ def search_sentinel2_scenes(
         print("[download_sentinel2] No scenes found matching criteria.")
         return []
 
-    items.sort(key=lambda i: i.properties.get("eo:cloud_cover", 100))
-    print(f"[download_sentinel2] Found {len(items)} scenes.")
-    return items
+    # Group by MGRS tile so we pick the best scene from *each* tile rather
+    # than taking the N globally least-cloudy scenes (which could all come
+    # from one tile on the edge of the AOI).
+    from collections import defaultdict
+    tile_groups: dict[str, list] = defaultdict(list)
+    for item in items:
+        tile_id = item.properties.get("s2:mgrs_tile", item.id)
+        tile_groups[tile_id].append(item)
+
+    selected = []
+    for tile_id, tile_items in tile_groups.items():
+        tile_items.sort(key=lambda i: i.properties.get("eo:cloud_cover", 100))
+        selected.append(tile_items[0])  # least-cloudy scene for this tile
+
+    selected.sort(key=lambda i: i.properties.get("eo:cloud_cover", 100))
+    n_tiles = len(tile_groups)
+    print(
+        f"[download_sentinel2] Found {len(items)} scenes across {n_tiles} MGRS tiles; "
+        f"selected 1 best scene per tile ({len(selected)} total)."
+    )
+    return selected
 
 
 def _clip_to_bbox(
@@ -208,8 +226,8 @@ def _apply_cloud_mask(
 
 def build_s2_composite(
     items: list,
-    bands: list[str] = ["B04", "B07", "B08"],
-    max_scenes: int = 8,
+    bands: list[str] = ["B02", "B03", "B04", "B07", "B08"],
+    max_scenes: int = 30,
     overview_level: int = 2,
     bbox_wgs84: Optional[tuple[float, float, float, float]] = None,
 ) -> Optional[dict[str, xr.DataArray]]:
@@ -351,6 +369,10 @@ def get_sentinel2_bands(
     # NetCDF. Without this, xarray.Dataset creates a union coordinate system
     # where bands at different native resolutions have non-overlapping valid
     # pixels, making multi-band arithmetic produce all-NaN results.
+    # Align all bands to B04's grid (10 m native → ~40 m at OL2).
+    # B02, B03, B04 are all 10 m native; B07 is 20 m; B08 is 10 m.
+    # reproject_match ensures they all share the same coordinate grid so
+    # multi-band arithmetic doesn't produce all-NaN from misaligned coords.
     if "B04" in composites:
         reference_band = composites["B04"]
         for band_name in list(composites.keys()):
