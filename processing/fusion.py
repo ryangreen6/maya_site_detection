@@ -41,12 +41,17 @@ def normalize_layer(
         return None
     try:
         arr = da.values.astype(np.float32)
-        vmin = np.nanmin(arr)
-        vmax = np.nanmax(arr)
+        # Robust percentile scaling: clip to p2–p98 to prevent a few extreme
+        # outlier pixels from compressing all meaningful variation.
+        finite = arr[np.isfinite(arr)]
+        if len(finite) == 0:
+            return None
+        vmin = float(np.percentile(finite, 2))
+        vmax = float(np.percentile(finite, 98))
         if vmax == vmin:
             normalized = np.zeros_like(arr)
         else:
-            normalized = (arr - vmin) / (vmax - vmin)
+            normalized = np.clip((arr - vmin) / (vmax - vmin), 0.0, 1.0)
         if invert:
             normalized = 1.0 - normalized
         result = xr.DataArray(
@@ -389,7 +394,10 @@ def fuse_layers(
         "gedi_relief": gedi_relief,
     }
 
-    # Layers where low values indicate anomaly → invert so high score = anomaly
+    # Layers where low values indicate anomaly → invert so high score = anomaly.
+    # Both ndvi and ndvi_dry are inverted: with the full-AOI S2 mosaic, sites
+    # have LOWER NDVI than surrounding jungle (stone structures = less canopy),
+    # so low values indicate anomaly → invert so high score = anomaly.
     invert_layers = {"ndvi", "ndvi_dry"}
 
     print("[fusion] Normalizing layers ...")
@@ -414,7 +422,10 @@ def fuse_layers(
     if composite is None:
         return None
 
-    # Final normalization to [0, 1]
+    # Apply a final normalization to spread the composite score range.
+    # The per-layer p2–p98 normalization leaves the composite in a narrow
+    # mid-range band; re-normalizing makes site scores clearly separate
+    # from background in the final [0, 1] output.
     composite = normalize_layer(composite)
     if composite is None:
         return None

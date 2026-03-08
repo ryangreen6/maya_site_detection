@@ -277,17 +277,14 @@ def build_s2_composite(
             print(f"[download_sentinel2] No valid data for band {band_name}.")
             continue
         try:
-            # Reproject all scenes to match the first scene's grid
-            reference = stack[0]
-            aligned = [reference]
-            for da in stack[1:]:
-                try:
-                    aligned.append(da.rio.reproject_match(reference))
-                except Exception:
-                    aligned.append(da)
-
-            stacked = xr.concat(aligned, dim="time")
-            composites[band_name] = stacked.median(dim="time", skipna=True)
+            if len(stack) == 1:
+                composites[band_name] = stack[0]
+            else:
+                # Mosaic tiles across their full spatial union using merge_arrays,
+                # which preserves each tile's extent rather than clipping all to
+                # the first tile (the bug with reproject_match as reference).
+                from rioxarray.merge import merge_arrays
+                composites[band_name] = merge_arrays(stack, nodata=np.nan)
         except Exception as exc:
             print(f"[download_sentinel2] Failed to composite band {band_name}: {exc}")
 

@@ -98,28 +98,29 @@ KNOWN_SITES_CSV: Path = BASE_DIR / "data" / "known_sites.csv"
 # Values are relative; they will be normalized to sum to 1 internally.
 # ---------------------------------------------------------------------------
 FUSION_WEIGHTS: dict[str, float] = {
-    # SRTM/Copernicus terrain (useful but limited by canopy)
-    "tpi": 0.08,
-    "lrm": 0.08,
-    "cop_tpi": 0.08,           # Copernicus DEM TPI (better vertical accuracy)
-    # Vegetation stress
-    "ndvi": 0.08,
-    "ndvi_dry": 0.10,          # Dry-season NDVI anomaly (peak stress signal)
-    # SAR
-    "sar": 0.08,
-    # Geometric / orientation
-    "geometric": 0.08,
-    "east_sightline": 0.08,
-    # Thermal inertia (stone vs soil contrast)
-    "thermal": 0.10,
-    # GEDI ground elevation — penetrates canopy (highest weight)
-    "gedi_relief": 0.24,
+    # --- Strongly discriminating layers (Cohen d > 0.5 from profiling) ---
+    # GEDI canopy-penetrating ground LRM — highest discriminator (d=1.24)
+    "gedi_relief": 0.45,
+    # NDVI anomaly — sites consistently higher than background (d=0.85)
+    "ndvi": 0.35,
+    # SAR backscatter anomaly — moderate signal (d=0.60)
+    "sar": 0.20,
+    # --- Weakly/non-discriminating layers — zeroed out ---
+    # tpi, lrm, cop_tpi, ndvi_dry, geometric, east_sightline, thermal
+    # all have |Cohen d| < 0.4 and are excluded to avoid diluting the signal.
+    "tpi": 0.0,
+    "lrm": 0.0,
+    "cop_tpi": 0.0,
+    "ndvi_dry": 0.0,
+    "geometric": 0.0,
+    "east_sightline": 0.0,
+    "thermal": 0.0,
 }
 
 # ---------------------------------------------------------------------------
 # Candidate extraction thresholds
 # ---------------------------------------------------------------------------
-COMPOSITE_SCORE_THRESHOLD: float = 0.65   # Normalized score (0–1)
+COMPOSITE_SCORE_THRESHOLD: float = 0.55   # Normalized score (0–1)
 MIN_CANDIDATE_CLUSTER_SIZE: int = 9       # Minimum cluster size in pixels
 
 # ---------------------------------------------------------------------------
