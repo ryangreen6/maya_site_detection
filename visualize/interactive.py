@@ -58,6 +58,12 @@ def _array_to_png_bytes(
         cmap = mcolors.LinearSegmentedColormap.from_list(
             "site_prob", ["white", "#FFF5EB", "#FD8D3C", "#D94701", "#7F0000"]
         )
+    elif cmap_name == "water_seas":
+        cmap = mcolors.LinearSegmentedColormap.from_list(
+            "water_seas",
+            [(0.00, "#ffffff"), (0.01, "#b7e4c7"), (0.25, "#52b788"),
+             (0.70, "#2d6a4f"), (1.00, "#1e6091")],
+        )
     else:
         cmap = plt.get_cmap(cmap_name)
 
@@ -143,6 +149,9 @@ def build_interactive_map(
     sites_gdf: Optional[gpd.GeoDataFrame],
     candidates_gdf: Optional[gpd.GeoDataFrame],
     output_path: Path = config.INTERACTIVE_MAP_PATH,
+    jrc_occurrence: Optional[xr.DataArray] = None,
+    jrc_seasonality: Optional[xr.DataArray] = None,
+    hydrolakes_gdf: Optional[gpd.GeoDataFrame] = None,
 ) -> None:
     """Build and save a Folium interactive HTML map with all detection layers.
 
@@ -151,6 +160,9 @@ def build_interactive_map(
       - NDVI anomaly as a raster overlay
       - SAR anomaly as a raster overlay
       - Composite score as a raster overlay (white → dark red)
+      - JRC surface water occurrence as a raster overlay (optional)
+      - JRC surface water seasonality as a raster overlay (optional)
+      - HydroLAKES lake polygons as a vector layer (optional)
       - Known Maya sites as circle markers with site name/source popups
       - Candidate detections as star markers with score/area/layer popups
       - Layer control widget for independent toggling of all layers
@@ -163,6 +175,9 @@ def build_interactive_map(
         sites_gdf: GeoDataFrame of known Maya site locations.
         candidates_gdf: GeoDataFrame of candidate detections.
         output_path: Path to save the HTML file.
+        jrc_occurrence: JRC surface water occurrence DataArray (0–100%).
+        jrc_seasonality: JRC surface water seasonality DataArray (0–12 months).
+        hydrolakes_gdf: GeoDataFrame of HydroLAKES lake polygons (WGS84).
     """
     try:
         import folium
@@ -296,6 +311,55 @@ def build_interactive_map(
 
         cand_layer.add_to(m)
         print(f"[interactive] Added {len(cand_wgs)} candidate markers.")
+
+    # ---------------------------------------------------------------------------
+    # Water layer raster overlays
+    # ---------------------------------------------------------------------------
+    water_raster_specs = [
+        (jrc_occurrence,  "Blues",    "JRC Surface Water — Occurrence (%)",  0.0, 100.0, 0.65),
+        (jrc_seasonality, "water_seas", "JRC Surface Water — Seasonality (months/yr)", 0.0, 12.0, 0.65),
+    ]
+    for da, cmap, name, vmin, vmax, alpha in water_raster_specs:
+        if da is None:
+            continue
+        overlay = _da_to_folium_image_overlay(da, cmap, name, vmin, vmax, alpha)
+        if overlay is not None:
+            overlay.add_to(m)
+            print(f"[interactive] Added '{name}' raster overlay.")
+
+    # HydroLAKES vector layer
+    if hydrolakes_gdf is not None and not hydrolakes_gdf.empty:
+        lakes_layer = folium.FeatureGroup(name="HydroLAKES", show=False)
+        try:
+            lakes_wgs = hydrolakes_gdf.to_crs("EPSG:4326")
+        except Exception:
+            lakes_wgs = hydrolakes_gdf
+
+        vol_col = "Vol_total" if "Vol_total" in lakes_wgs.columns else None
+        for _, row in lakes_wgs.iterrows():
+            name_val = str(row.get("Lake_name", "")).strip()
+            area_ha  = row.get("Lake_area", float("nan"))
+            vol      = row.get(vol_col, float("nan")) if vol_col else float("nan")
+            popup_html = (
+                f"<b>{name_val if name_val and name_val != 'nan' else 'Unnamed lake'}</b><br>"
+                f"Area: {area_ha:,.1f} km²<br>"
+                + (f"Volume: {vol:,.2f} × 10⁶ m³<br>" if np.isfinite(vol) else "")
+            )
+            import json
+            folium.GeoJson(
+                data=row.geometry.__geo_interface__,
+                style_function=lambda _: {
+                    "fillColor": "#1e6091",
+                    "color": "#60a5fa",
+                    "weight": 0.8,
+                    "fillOpacity": 0.55,
+                },
+                tooltip=name_val if name_val and name_val != "nan" else "Lake",
+                popup=folium.Popup(popup_html, max_width=220),
+            ).add_to(lakes_layer)
+
+        lakes_layer.add_to(m)
+        print(f"[interactive] Added HydroLAKES layer ({len(lakes_wgs)} polygons).")
 
     # Layer control
     folium.LayerControl(collapsed=False).add_to(m)
